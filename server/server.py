@@ -13,8 +13,8 @@ from azure.servicebus import ServiceBusService, Message, Topic, Rule, DEFAULT_RU
 
 bus_service = ServiceBusService(
     service_namespace='licenseplatepublisher',
-    shared_access_key_name='INSERTKEY',
-    shared_access_key_value='INSERTKEY')
+    shared_access_key_name='ConsumeReads',
+    shared_access_key_value='VNcJZVQAVMazTAfrssP6Irzlg/pKwbwfnOqMXqROtCQ=')
 
 
 FLASK_DEBUG = os.environ.get('FLASK_DEBUG', True)
@@ -22,11 +22,10 @@ SUPPORTED_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 
 app = Flask(__name__)
 
-COMPUTER_VISION_SUBSCRIPTION_KEY = "INSERTKEY"
-COMPUTER_VISION_ENDPOINT = "INSERTKEY"
+COMPUTER_VISION_SUBSCRIPTION_KEY = "40d4b184080c436aaab896d811353948"
+COMPUTER_VISION_ENDPOINT = "https://meganoni.cognitiveservices.azure.com/"
 
 computervision_client = ComputerVisionClient(COMPUTER_VISION_ENDPOINT, CognitiveServicesCredentials(COMPUTER_VISION_SUBSCRIPTION_KEY))
-
 
 @app.route("/ping")
 def ping():
@@ -62,7 +61,7 @@ def init_get_money():
         plates = data['plates']
 
     while True:
-        msg = bus_service.receive_subscription_message('licenseplateread', 'eG4y7VYFse8NvW53', peek_lock=True)
+        msg = bus_service.receive_subscription_message('licenseplateread', 'eG4y7VYFse8NvW53', peek_lock=False)
 
         msg_json = json.loads(msg.body)
 
@@ -74,6 +73,11 @@ def init_get_money():
             password = "RTFragcan38P5h8j"
             req_json = msg.body
             resp = requests.post( request_url, data=req_json, auth=(username, password))
+            json_file.close()
+            return Response(
+                resp.text,
+                status=resp.status_code
+            )
 
 
 @app.route("/analyzePlate", methods = ['GET'])
