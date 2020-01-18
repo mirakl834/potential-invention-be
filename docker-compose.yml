@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+    smartbin-servo:
+        build:
+            context: server
+            dockerfile: Dockerfile
+        container_name: potential-invention-servo
+        volumes:
+            - ./server:/home/server
+        ports:
+            - "5005:5005"

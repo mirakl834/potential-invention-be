@@ -107,3 +107,4 @@ ENV/
 .python_history
 .bash_history
 *.venv/
+.idea/
