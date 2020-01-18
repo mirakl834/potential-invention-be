@@ -7,6 +7,7 @@ from flask import Response
 from datetime import datetime
 import requests
 
+from azure.storage.blob import BlockBlobService
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from msrest.authentication import CognitiveServicesCredentials
 from azure.servicebus import ServiceBusService, Message, Topic, Rule, DEFAULT_RULE_NAME
@@ -16,6 +17,17 @@ bus_service = ServiceBusService(
     shared_access_key_name='ConsumeReads',
     shared_access_key_value='VNcJZVQAVMazTAfrssP6Irzlg/pKwbwfnOqMXqROtCQ=')
 
+
+account_name = 'meganoni'
+account_key = 'dqODmqRYtyXC1skyDa8VmsY9Hupc+pQQp/OyKZFEcFU4yO1qZXPoW8BiOuZLJwldVo7G724NhIL3jyRpeAUgjA=='
+container_name = 'test'
+
+block_blob_service = BlockBlobService(
+    account_name=account_name,
+    account_key=account_key
+)
+
+blob_url_template = "https://meganoni.blob.core.windows.net/test/%s"
 
 FLASK_DEBUG = os.environ.get('FLASK_DEBUG', True)
 SUPPORTED_EXTENSIONS = ('.png', '.jpg', '.jpeg')
@@ -73,6 +85,40 @@ def init_get_money():
             password = "RTFragcan38P5h8j"
             req_json = msg.body
             resp = requests.post( request_url, data=req_json, auth=(username, password))
+            json_file.close()
+            return Response(
+                resp.text,
+                status=resp.status_code
+            )
+
+
+@app.route( "/initGetMoney2", methods=['GET'] )
+def init_get_money_2():
+    with open( 'daily_wanted.txt' ) as json_file:
+        data = json.load( json_file )
+        plates = data['plates']
+
+    while True:
+        msg = bus_service.receive_subscription_message( 'licenseplateread', 'eG4y7VYFse8NvW53', peek_lock=False )
+
+        msg_json = json.loads( msg.body )
+
+        plate_num = msg_json['LicensePlate']
+
+        if plate_num in plates:
+            request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/platelocation"
+            username = "equipe13"
+            password = "RTFragcan38P5h8j"
+
+            img_context = msg_json.pop("ContextImageJpg")
+            blob_name = plate_num
+            block_blob_service.create_blob_from_text(container_name,blob_name,img_context)
+
+            blob_url = blob_url_template % blob_name
+
+            msg_json['ContextImageReference'] = blob_url
+            req_json = json.dumps(msg_json)
+            resp = requests.post( request_url, data=req_json, auth=(username, password) )
             json_file.close()
             return Response(
                 resp.text,
