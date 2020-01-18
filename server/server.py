@@ -6,6 +6,7 @@ import json
 from flask import Response
 from datetime import datetime
 import requests
+import base64
 
 from azure.storage.blob import BlockBlobService
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
@@ -104,15 +105,15 @@ def init_get_money_2():
         msg_json = json.loads( msg.body )
 
         plate_num = msg_json['LicensePlate']
-
+        
         if plate_num in plates:
             request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/platelocation"
             username = "equipe13"
             password = "RTFragcan38P5h8j"
-
+            msg_json.pop("LicensePlateImageJpg")
             img_context = msg_json.pop("ContextImageJpg")
-            blob_name = plate_num
-            block_blob_service.create_blob_from_text(container_name,blob_name,img_context)
+            blob_name = plate_num + ".jpg"
+            block_blob_service.create_blob_from_bytes(container_name, blob_name, base64.decodestring(img_context))
 
             blob_url = blob_url_template % blob_name
 
