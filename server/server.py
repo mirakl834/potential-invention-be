@@ -24,7 +24,7 @@ bus_service = ServiceBusService(
 account_name = 'meganoni'
 account_key = 'dqODmqRYtyXC1skyDa8VmsY9Hupc+pQQp/OyKZFEcFU4yO1qZXPoW8BiOuZLJwldVo7G724NhIL3jyRpeAUgjA=='
 context_container_name = 'test'
-plate_container_name = 'plate'
+plate_container_name = 'plaque'
 
 block_blob_service = BlockBlobService(
     account_name=account_name,
@@ -32,6 +32,7 @@ block_blob_service = BlockBlobService(
 )
 
 blob_url_template = "https://meganoni.blob.core.windows.net/test/%s"
+plate_blob_url_template = "https://meganoni.blob.core.windows.net/plaque/%s"
 
 FLASK_DEBUG = os.environ.get('FLASK_DEBUG', True)
 SUPPORTED_EXTENSIONS = ('.png', '.jpg', '.jpeg')
@@ -224,7 +225,7 @@ def init_get_money_4():
         blob_name = plate_num + ".jpg"
         block_blob_service.create_blob_from_bytes(plate_container_name, blob_name, base64.decodestring( img_plate ) )
 
-        plate_blob_url = blob_url_template % blob_name
+        plate_blob_url = plate_blob_url_template % blob_name
 
         fuzzy_plate_nums = generate_fuzzy_list(plate_num)
 
@@ -280,7 +281,7 @@ ocr_url = COMPUTER_VISION_ENDPOINT + "vision/v2.1/ocr"
 
 def extract_text(remote_image_url):
     headers = {'Ocp-Apim-Subscription-Key': COMPUTER_VISION_SUBSCRIPTION_KEY}
-    params = {'language': 'en', 'detectOrientation': 'true'}
+    params = {'language': 'unk', 'detectOrientation': 'true'}
     data = {'url': remote_image_url}
     response = requests.post( ocr_url, headers=headers, params=params, json=data )
     response.raise_for_status()
