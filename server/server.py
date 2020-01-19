@@ -7,6 +7,7 @@ from flask import Response
 from datetime import datetime
 import requests
 import base64
+from itertools import product
 
 from azure.storage.blob import BlockBlobService
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
@@ -92,6 +93,81 @@ def init_get_money():
                 status=resp.status_code
             )
 
+fuzzy_dict = {
+    'B' : ['B','8'],
+    'C' : ['C','G'],
+    'E' : ['E','F'],
+    'K' : ['K','X','Y'],
+    'I' : ['I','1','T','J'],
+    'S' : ['S','5'],
+    'O' : ['O','D','Q','0'],
+    'P' : ['P','R'],
+    'Z' : ['Z','2']
+}
+
+
+def generate_fuzzy_list(plate_num):
+    fuzzy_list = set()
+    is_fuzzy = False
+
+    for letter in plate_num:
+        if letter in fuzzy_dict:
+            is_fuzzy = True
+            break
+
+    if not is_fuzzy:
+        return [plate_num]
+
+    indexes, replacements = zip(*[(i, fuzzy_dict[c]) for i, c in enumerate(plate_num) if c in fuzzy_dict])
+    seq_plate_num = list(plate_num)
+
+    for p in product(*replacements):
+        for index, replacement in zip(indexes, p):
+            seq_plate_num[index] = replacement
+            fuzzy_list.add(''.join(seq_plate_num))
+
+    return list(sorted(fuzzy_list))
+
+
+@app.route( "/initGetMoney3", methods=['GET'] )
+def init_get_money_3():
+    with open( 'daily_wanted.txt' ) as json_file:
+        data = json.load( json_file )
+        wanted_plates = data['plates']
+
+    while True:
+        msg = bus_service.receive_subscription_message( 'licenseplateread', 'eG4y7VYFse8NvW53', peek_lock=False )
+
+        msg_json = json.loads( msg.body )
+
+        plate_num = msg_json['LicensePlate']
+        print("PLATE NUMBER :" + plate_num)
+
+        fuzzy_plate_nums = generate_fuzzy_list(plate_num)
+
+        for fuzzy_plate_num in fuzzy_plate_nums:
+            print("FUZZY PLATE: " + fuzzy_plate_num)
+            if fuzzy_plate_num in wanted_plates:
+                msg_json['LicensePlate'] = fuzzy_plate_num
+                request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/platelocation"
+                username = "equipe13"
+                password = "RTFragcan38P5h8j"
+                msg_json.pop("LicensePlateImageJpg")
+                img_context = msg_json.pop("ContextImageJpg")
+                blob_name = plate_num + ".jpg"
+                block_blob_service.create_blob_from_bytes(container_name, blob_name, base64.decodestring(img_context))
+
+                blob_url = blob_url_template % blob_name
+
+                msg_json['ContextImageReference'] = blob_url
+                req_json = json.dumps(msg_json)
+                resp = requests.post( request_url, data=req_json, auth=(username, password) )
+                json_file.close()
+                return Response(
+                    msg_json['LicensePlate'],
+                    status=resp.status_code
+                )
+
 
 @app.route( "/initGetMoney2", methods=['GET'] )
 def init_get_money_2():
@@ -105,7 +181,8 @@ def init_get_money_2():
         msg_json = json.loads( msg.body )
 
         plate_num = msg_json['LicensePlate']
-        
+        print("PLATE NUMBER :" + plate_num)
+
         if plate_num in plates:
             request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/platelocation"
             username = "equipe13"
@@ -122,7 +199,7 @@ def init_get_money_2():
             resp = requests.post( request_url, data=req_json, auth=(username, password) )
             json_file.close()
             return Response(
-                resp.text,
+                str(plate_num),
                 status=resp.status_code
             )
 
@@ -141,6 +218,18 @@ def analyze_plate():
         for caption in description_results.captions:
             print("'{}' with confidence {:.2f}%".format( caption.text, caption.confidence * 100 ))
             return "success"
+
+
+@app.route("/getWantedList", methods=['GET'])
+def get_wanted_list():
+    request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/wantedplates"
+    username = "equipe13"
+    password = "RTFragcan38P5h8j"
+    resp = requests.get( request_url, auth=(username, password) )
+    return Response(
+        resp.text,
+        status=resp.status_code
+    )
 
 
 if __name__ == "__main__":
