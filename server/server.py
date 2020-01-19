@@ -256,6 +256,7 @@ def init_get_money_4():
         print("EXTRACT: " + extract_plate_num)
 
         if extract_plate_num in wanted_plates:
+            msg_json['LicensePlate'] = extract_plate_num
             request_url = "https://licenseplatevalidator.azurewebsites.net/api/lpr/platelocation"
             username = "equipe13"
             password = "RTFragcan38P5h8j"
@@ -280,10 +281,19 @@ ocr_url = COMPUTER_VISION_ENDPOINT + "vision/v2.1/ocr"
 
 
 def extract_text(remote_image_url):
+    img = requests.get(remote_image_url)
+    length = img.headers.get("content-length")
+    print("CONTENT LENTGH: " + length + " TOO SMALL? " + str(int(length) < 5000))
+    if int(length) < 5000:
+        return ""
+
     headers = {'Ocp-Apim-Subscription-Key': COMPUTER_VISION_SUBSCRIPTION_KEY}
     params = {'language': 'unk', 'detectOrientation': 'true'}
     data = {'url': remote_image_url}
+
+    print(remote_image_url)
     response = requests.post( ocr_url, headers=headers, params=params, json=data )
+
     response.raise_for_status()
 
     analysis = response.json()
@@ -302,6 +312,45 @@ def extract_text(remote_image_url):
             return word
 
     return ""
+
+
+@app.route("/test")
+def test():
+    remote_image_url ="https://meganoni.blob.core.windows.net/plaque/380CUG.jpg"
+    img = requests.get(remote_image_url)
+    length = img.headers.get("content-length")
+    print("CONTENT LENTGH: " + length + " TOO SMALL? " + str(int(length) < 5000))
+    if int(length) < 5000:
+        return ""
+
+    headers = {'Ocp-Apim-Subscription-Key': COMPUTER_VISION_SUBSCRIPTION_KEY}
+    params = {'language': 'unk', 'detectOrientation': 'true'}
+    data = {'url': remote_image_url}
+
+    print(remote_image_url)
+    response = requests.post( ocr_url, headers=headers, params=params, json=data )
+
+    response.raise_for_status()
+
+    analysis = response.json()
+
+    return json.dumps(analysis)
+    # Extract the word bounding boxes and text.
+    line_infos = [region["lines"] for region in analysis["regions"]]
+    words = list()
+    for line in line_infos:
+        for word_metadata in line:
+            word_to_add = ""
+            for word_info in word_metadata["words"]:
+                word_to_add = word_to_add + word_info["text"]
+            words.append(word_to_add)
+
+    for word in words:
+        if bool(re.search('^(?=.*[A-Z0-9])(?=.*\d)[A-Z0-9\d]{6,}$', word)):
+            return word
+
+    return ""
+
 
 
 @app.route("/getWantedList", methods=['GET'])
